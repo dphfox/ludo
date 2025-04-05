@@ -1,23 +1,33 @@
 <h1>
-	ludo · <small>the <u>lu</u>a <u>do</u>er</small>
+    <img src="./assets/ludo.svg" alt="ludo" height=64>
 </h1>
 
-An ultra-small runtime for Luau written in Rust.
+The **Lu**a **Do**er. An ultra-thin runtime for Luau written in Rust, with support for dynamic native extensions.
 
-## Philosophy
-Libraries are provided by extensions, not the core runtime.
+## Overview
+Ludo largely supports the same feature set as Luau out of the box, except that all scripts are run in Luau's safe environment and unsafe features like `setfenv` or `loadstring` are forcibly disabled.
 
-If you choose to use Ludo on its own, your programs won't do much above a
-regular call to `luau`. This is by design! - this gives you choice as to what
-capabilities your program will have.
+However, unlike Luau, Ludo supports interacting with native libraries. Any script can be accompanied by a `.ludorc` defining a natively compiled counterpart; this native library will be exposed to the Luau script for direct use.
 
-To add capabilities to your program, you can explicitly point to a native `.dll`
-compatible with Ludo's interface. With this, you can access the native code's
-features from inside of Luau.
+This architecture allows any package to bundle native code dynamically. Extending the Ludo runtime is as easy as dropping new files into your project, just like adding a Luau library.
 
-These "native extension" scripts can define and export a Luau API just like any
-other Luau module. End user code must explicitly grant permission to access
-native features for security.
+## Permissions
+
+Scripts must have permission to define a native counterpart. If a `.ludorc` declares a native library without permission, the script will fail to load.
+
+By default, only the main script (directly run by Ludo) has native permission.
+
+Scripts with native permission can manually grant native permission to other scripts on a case-by-case basis via their own `.ludorc` files.
+
+## Blessing
+
+To protect against modified or unknown binaries, the user must acknowledge any binary that is being run for the first time. This process is called "blessing".
+
+When the user blesses a native binary, a hash of that library's contents will be stored in the local user's configuration. When Ludo attempts to load the binary at runtime, the hash will be recalculated and compared to the stored binary; the two must match before proceeding.
+
+If a native library is found which doesn't have a hash yet, the user will be prompted to bless it. If the hashes don't match, the user will be alerted to the discrepancy.
+
+Blessing a binary does not guarantee that it is innocent; you should use your better judgement before blessing any binary.
 
 ## License
 

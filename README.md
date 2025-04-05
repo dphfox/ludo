@@ -29,7 +29,7 @@ This encapsulation helps ensure that a native library is only used by the packag
 
 Scripts must have permission to define a native counterpart. If a `.ludorc` declares a native library without permission, the script will fail to load.
 
-By default, only the main script (directly run by Ludo) has native permission.
+By default, only the `.ludorc` in the main script's directory (directly run by Ludo) has native permission. Native libraries declared in other `.ludorc` files do not inherit this default permission.
 
 Scripts with native permission can manually grant native permission to other scripts on a case-by-case basis via their own `.ludorc` files.
 

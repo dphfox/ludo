@@ -1,5 +1,5 @@
 <h1>
-    <img src="./assets/ludo.svg" alt="ludo" height=64>
+    <img src="./assets/ludo.svg" alt="ludo" height=45>
 </h1>
 
 The **Lu**a **Do**er. An ultra-thin runtime for Luau written in Rust, with support for dynamic native extensions.

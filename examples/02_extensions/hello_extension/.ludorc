@@ -1,0 +1,4 @@
+{
+	"version": 1,
+	"native": "./hello_extension.dll"
+}

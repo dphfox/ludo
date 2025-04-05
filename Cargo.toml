@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 anyhow = "1.0.97"
+libloading = "0.8.6"
 mlua = { version = "0.10", features = ["luau"] }

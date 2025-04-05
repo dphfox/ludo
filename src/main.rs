@@ -1,3 +1,5 @@
+mod extension;
+
 use mlua::Lua;
 use mlua::Result;
 

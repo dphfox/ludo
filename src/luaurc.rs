@@ -8,7 +8,7 @@ use crate::fs_util::open_file_if_exists;
 #[derive(Debug, Deserialize, Default)]
 pub struct LuauRc {
     #[serde(default)]
-    pub aliases: HashMap<OsString, PathBuf>
+    pub aliases: HashMap<String, PathBuf>
 }
 
 impl LuauRc {
@@ -50,9 +50,8 @@ impl CanonicalLuauRc {
             Component::CurDir => script_location,
             Component::ParentDir => script_location.parent().context("Module path cannot visit parent")?,
             Component::Normal(name) => {
-                let bytes = name.as_encoded_bytes();
-                let is_alias = bytes[0] == b'@';
-                if !is_alias {
+                let name = name.to_str().context("Module path must be valid UTF-8")?;
+                if !name.starts_with("@") {
                     bail!("Module paths must start with a valid prefix");
                 }
                 self.aliases.get(&name).context("Alias in module path has not been defined")?

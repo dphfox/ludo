@@ -1,6 +1,6 @@
 {
 	"version": 1,
 	"permissions": {
-		"./hello_extension": ["native"]
+		"@hello_extension": { "native": true }
 	}
 }

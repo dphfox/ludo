@@ -1,4 +1,7 @@
 {
 	"version": 1,
-	"native": "./bin"
+	"native": {
+	    "path": "./target/release/hello_extension",
+	    "entry_point": "luaopen_native"
+	}
 }

@@ -1,7 +1,8 @@
 {
 	"version": 1,
 	"native": {
-	    "path": "./target/release/hello_extension",
+	    "name": "hello_extension",
+	    "parent": "./target/release",
 	    "entry_point": "luaopen_native"
 	}
 }

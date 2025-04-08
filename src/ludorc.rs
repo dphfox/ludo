@@ -2,10 +2,11 @@ use crate::fs_util::open_file_if_exists;
 use anyhow::{bail, Result};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::ffi::CString;
+use std::ffi::{CString, OsString};
 use std::path::{Path, PathBuf};
+use crate::bless::BlessInfo;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct UserRc {
     pub version: u32,
     #[serde(default)]
@@ -21,13 +22,22 @@ impl Default for UserRc {
     }
 }
 
-#[derive(Debug, Deserialize)]
+impl UserRc {
+    pub fn is_blessed(
+        &self,
+        info: &BlessInfo
+    ) -> bool {
+        self.blessed.contains(&info.hash)
+    }
+}
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct WorkspaceRc {
     pub version: u32,
     #[serde(default)]
     pub permissions: HashMap<String, Permissions>,
     #[serde(default)]
-    pub native: Vec<Native>
+    pub native: Option<Native>
 }
 
 impl Default for WorkspaceRc {
@@ -35,20 +45,21 @@ impl Default for WorkspaceRc {
         Self {
             version: 1,
             permissions: HashMap::new(),
-            native: vec![]
+            native: None
         }
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Permissions {
-    native: bool
+    pub native: bool
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Clone)]
 pub struct Native {
-    path: PathBuf,
-    entry_point: CString
+    pub name: OsString,
+    pub parent: PathBuf,
+    pub entry_point: CString
 }
 
 impl WorkspaceRc {
@@ -59,7 +70,7 @@ impl WorkspaceRc {
         for (key, value) in self.permissions.drain() {
             ancestor.permissions.insert(key, value);
         }
-        if !ancestor.native.is_empty() {
+        if ancestor.native.is_some() {
             bail!(".ludorc files with native paths cannot have descendant .ludorc files")
         }
         Ok(ancestor)

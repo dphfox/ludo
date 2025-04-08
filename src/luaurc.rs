@@ -5,7 +5,7 @@ use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use crate::fs_util::open_file_if_exists;
 
-#[derive(Debug, Deserialize, Default)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct LuauRc {
     #[serde(default)]
     pub aliases: HashMap<String, PathBuf>
@@ -23,7 +23,7 @@ impl LuauRc {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct CanonicalLuauRc {
     pub aliases: HashMap<String, PathBuf>
 }

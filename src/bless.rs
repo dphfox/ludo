@@ -1,10 +1,13 @@
-use std::fmt::{Display, Formatter};
+use crate::fs_util::{resolve_module_path, select_native_binary};
+use crate::ludorc::Native;
+use crate::run::ScriptContext;
+use anyhow::{Context, Result};
 use base64ct::{Base64, Encoding};
-use sha3::digest::Update;
 use sha3::{Digest, Sha3_256};
-use std::path::{PathBuf};
-use thiserror::Error;
-use crate::run::RunContext;
+use std::collections::VecDeque;
+use std::fmt::Display;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone)]
 pub struct BlessInfo {
@@ -26,41 +29,47 @@ impl BlessInfo {
         let hash = Base64::encode_string(hash.finalize().as_slice());
         Self { title, path, hash }
     }
-}
 
-#[derive(Error, Debug)]
-pub struct NotBlessedError {
-    not_blessed: Vec<BlessInfo>
-}
-
-impl Display for NotBlessedError {
-    fn fmt(
-        &self,
-        f: &mut Formatter<'_>
-    ) -> std::fmt::Result {
-        write!(f, "{} modules were not blessed", self.not_blessed.len())
+    pub fn new_from_fs(
+        native: &Native
+    ) -> Result<Self>{
+        let path = select_native_binary(&native.name, &native.parent);
+        let bytes = fs::read(&path).with_context(|| format!("Could not read native binary {}", native.name.to_string_lossy()))?;
+        Ok(Self::new(native.name.to_string_lossy().to_string(), path, &bytes))
     }
 }
 
-pub fn ensure_blessed(
-    main_context: RunContext
-) -> Result<(), NotBlessedError> {
-    let mut not_blessed = vec![];
+pub struct TransitiveNative {
+    pub context: ScriptContext,
+    pub native: Native,
+    pub bless: BlessInfo
+}
 
-    fn visit(
-        context: RunContext
-    ) {
-        for relative_path in context.native_paths() {
-            let sub_workspace = context.workspace.join(&relative_path);
-            todo!();
+impl TransitiveNative {
+    pub fn is_blessed(&self) -> bool {
+        self.context.user_rc.is_blessed(&self.bless)
+    }
+}
+
+pub fn collect_transitive_natives(
+    main_context: &ScriptContext
+) -> Result<Vec<TransitiveNative>> {
+    let mut transitive_natives = vec![];
+    let mut queue = VecDeque::from([main_context.clone()]);
+    while let Some(context) = queue.pop_front() {
+        if let Some(native) = &context.workspace_rc.native {
+            transitive_natives.push(TransitiveNative {
+                context: context.clone(),
+                native: native.clone(),
+                bless: BlessInfo::new_from_fs(native)?
+            });
+        }
+        for (alias, permissions) in context.workspace_rc.permissions.iter() {
+            if !permissions.native { continue }
+            let module_location = resolve_module_path(&context.luau_rc, &context.script_location, Path::new(alias))?;
+            let sub_context = ScriptContext::new_from_fs(main_context.user_rc.clone(), module_location)?;
+            queue.push_back(sub_context);
         }
     }
-
-    visit(main_context);
-
-    if not_blessed.is_empty() {
-        Ok(())
-    } else {
-        Err(NotBlessedError { not_blessed })
-    }
+    Ok(transitive_natives)
 }

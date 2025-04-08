@@ -1,7 +1,9 @@
+use std::ffi::OsStr;
 use anyhow::{bail, Context, Result};
 use std::fs::File;
 use std::io;
 use std::path::{Component, Path, PathBuf};
+use libloading::library_filename;
 use crate::luaurc::CanonicalLuauRc;
 
 pub fn open_file_if_exists(
@@ -40,6 +42,13 @@ pub fn resolve_module_path(
     let rest_of_path = parts.collect::<PathBuf>();
     let module_path = starting_directory.join(rest_of_path);
     Ok(module_path)
+}
+
+pub fn select_native_binary(
+    name: &OsStr,
+    parent: &Path
+) -> PathBuf {
+    parent.join(library_filename(name))
 }
 
 #[cfg(test)]

@@ -17,17 +17,17 @@ fn main() -> Result<()> {
 
 
 
-	let source = read_to_string();
-
-	let lua = Lua::new();
-	lua.sandbox(true)?;
-
-	lua.load(
-		r#"
-			print(`Hello, world`)
-		"#
-	)
-	.exec()?;
+	// let source = read_to_string();
+	//
+	// let lua = Lua::new();
+	// lua.sandbox(true)?;
+	//
+	// lua.load(
+	// 	r#"
+	// 		print(`Hello, world`)
+	// 	"#
+	// )
+	// .exec()?;
 
 	Ok(())
 }

@@ -15,15 +15,17 @@ impl LuauRc {
     pub fn canonicalise(
         mut self
     ) -> Result<CanonicalLuauRc> {
-        Ok(Self {
-            aliases: self.aliases.drain().map(Path::canonicalize).collect()?
+        Ok(CanonicalLuauRc {
+            aliases: self.aliases.drain()
+                .map(|(alias, path)| Ok((alias, path.canonicalize()?)))
+                .collect::<Result<_>>()?
         })
     }
 }
 
 #[derive(Debug, Default)]
 pub struct CanonicalLuauRc {
-    pub aliases: HashMap<OsString, PathBuf>
+    pub aliases: HashMap<String, PathBuf>
 }
 
 impl CanonicalLuauRc {
@@ -35,30 +37,6 @@ impl CanonicalLuauRc {
             ancestor.aliases.insert(key, value);
         }
         ancestor
-    }
-
-    pub fn resolve_module_path(
-        &self,
-        script_location: &Path,
-        module_path: &Path
-    ) -> Result<PathBuf> {
-        let Some(first) = module_path.components().next() else { bail!("Module path cannot be empty") };
-
-        let starting_directory = match first {
-            Component::Prefix(_) => bail!("Module path cannot be absolute"),
-            Component::RootDir => bail!("Module path cannot be absolute"),
-            Component::CurDir => script_location,
-            Component::ParentDir => script_location.parent().context("Module path cannot visit parent")?,
-            Component::Normal(name) => {
-                let name = name.to_str().context("Module path must be valid UTF-8")?;
-                if !name.starts_with("@") {
-                    bail!("Module paths must start with a valid prefix");
-                }
-                self.aliases.get(&name).context("Alias in module path has not been defined")?
-            }
-        };
-
-        todo!()
     }
 }
 

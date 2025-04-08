@@ -1,10 +1,9 @@
+use crate::fs_util::open_file_if_exists;
 use anyhow::{bail, Result};
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::ffi::CString;
-use std::fs::File;
-use std::io;
 use std::path::{Path, PathBuf};
-use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct UserRc {
@@ -68,9 +67,9 @@ impl WorkspaceRc {
 }
 
 pub fn load_user_rc() -> Result<Option<UserRc>> {
-    let Some(home_dir) = dirs::home_dir() else { Ok(None) };
-    let rc_path = home_dir?.join(".ludorc");
-    let Some(file) = open_file_if_exists(&rc_path)? else { Ok(None) };
+    let Some(home_dir) = dirs::home_dir() else { return Ok(None) };
+    let rc_path = home_dir.join(".ludorc");
+    let Some(file) = open_file_if_exists(&rc_path)? else { return Ok(None) };
     let rc: UserRc = serde_json::from_reader(file)?;
     if rc.version != 1 {
         bail!("Unsupported ludorc version: {}", rc.version);

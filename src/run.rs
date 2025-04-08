@@ -21,10 +21,8 @@ impl RunContext {
     }
 
     pub fn native_paths(&self) -> Vec<PathBuf> {
-        self.workspace_rc.native.map(|)
+        todo!()
     }
-
-    pub fn
 }
 
 pub fn run_from_fs(

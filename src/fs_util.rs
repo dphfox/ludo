@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use anyhow::{bail, Context, Result};
 use std::fs::File;
-use std::io;
+use std::{fs, io};
 use std::path::{Component, Path, PathBuf};
 use libloading::library_filename;
 use crate::luaurc::CanonicalLuauRc;
@@ -31,7 +31,7 @@ pub fn resolve_module_path(
         Some(Component::CurDir) => script_location.parent().context("Module path cannot visit parent")?,
         Some(Component::ParentDir) => script_location.parent().and_then(Path::parent).context("Module path cannot visit parent")?,
         Some(Component::Normal(name)) => {
-            let name = name.to_str().context("Module path must be val5id UTF-8")?;
+            let name = name.to_str().context("Module path must be valid UTF-8")?;
             if !name.starts_with("@") {
                 bail!("Module paths must start with a valid prefix");
             }
@@ -42,6 +42,30 @@ pub fn resolve_module_path(
     let rest_of_path = parts.collect::<PathBuf>();
     let module_path = starting_directory.join(rest_of_path);
     Ok(module_path)
+}
+
+pub fn locate_module_script(
+    module_path: &Path
+) -> Result<Option<PathBuf>> {
+    if let Some(direct) = locate_luau_script(module_path)? {
+        Ok(Some(direct))
+    } else if let Some(nested) = locate_luau_script(&module_path.join("init"))? {
+        Ok(Some(nested))
+    } else {
+        Ok(None)
+    }
+}
+
+pub fn locate_luau_script(
+    script_path: &Path
+) -> Result<Option<PathBuf>> {
+    for extension in ["luau", "lua"].into_iter() {
+        let script_path = script_path.with_extension(extension);
+        if script_path.is_file() {
+            return Ok(Some(script_path));
+        }
+    }
+    Ok(None)
 }
 
 pub fn select_native_binary(

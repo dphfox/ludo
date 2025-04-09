@@ -7,7 +7,7 @@ use ansi_term::Style;
 use anyhow::{Context, Result};
 use crate::bless::{collect_transitive_natives, TransitiveNative};
 use crate::luaurc::{load_composite_luau_rc, CanonicalLuauRc};
-use crate::ludorc::{load_composite_workspace_rc, load_user_rc, UserRc, WorkspaceRc};
+use crate::ludorc::{load_workspace_rc, load_user_rc, UserRc, WorkspaceRc};
 
 #[derive(Debug, Clone)]
 pub struct ScriptContext {
@@ -23,8 +23,8 @@ impl ScriptContext {
         script_location: PathBuf
     ) -> Result<Self> {
         let workspace = script_location.parent().context("Ludo scripts must exist inside of a workspace")?;
-        let workspace_rc = load_composite_workspace_rc(&workspace).context("Failed to load workspace .ludorc")?;
-        let luau_rc = load_composite_luau_rc(&workspace).context("Failed to load .luaurc")?;
+        let workspace_rc = load_workspace_rc(&workspace).context("Failed to construct .ludorc")?;
+        let luau_rc = load_composite_luau_rc(&workspace).context("Failed to construct .luaurc")?;
         Ok(Self { user_rc, workspace_rc, luau_rc, script_location })
     }
 }

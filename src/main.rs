@@ -14,6 +14,7 @@ use std::rc::Rc;
 use ansi_term::Color::Green;
 use ansi_term::Style;
 use log::warn;
+use crate::run::run_from_fs;
 
 fn main() -> Result<()> {
 	if ansi_term::enable_ansi_support().is_err() {
@@ -25,20 +26,11 @@ fn main() -> Result<()> {
 		println!("ludo {crate_version}");
 		return Ok(());
 	}
-
 	let user_rc = Rc::new(load_user_rc().context("Failed to load user .ludorc")?.unwrap_or_default());
-
-	// let source = read_to_string();
-	//
-	// let lua = Lua::new();
-	// lua.sandbox(true)?;
-	//
-	// lua.load(
-	// 	r#"
-	// 		print(`Hello, world`)
-	// 	"#
-	// )
-	// .exec()?;
-
-	Ok(())
+	if let Some(file_to_run) = args.file_to_run {
+		run_from_fs(user_rc, file_to_run)
+	}
+	else {
+		todo!();
+	}
 }

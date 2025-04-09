@@ -1,8 +1,8 @@
 use crate::fs_util::open_file_if_exists;
-use anyhow::{bail, Result};
+use anyhow::{bail, Context, Result};
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
-use std::ffi::{CString, OsString};
+use std::ffi::{CString};
 use std::path::{Path, PathBuf};
 use crate::bless::BlessInfo;
 
@@ -57,24 +57,9 @@ pub struct Permissions {
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Native {
-    pub name: OsString,
+    pub name: String,
     pub parent: PathBuf,
     pub entry_point: CString
-}
-
-impl WorkspaceRc {
-    pub fn compose_atop(
-        mut self,
-        mut ancestor: Self
-    ) -> Result<Self> {
-        for (key, value) in self.permissions.drain() {
-            ancestor.permissions.insert(key, value);
-        }
-        if ancestor.native.is_some() {
-            bail!(".ludorc files with native paths cannot have descendant .ludorc files")
-        }
-        Ok(ancestor)
-    }
 }
 
 pub fn load_user_rc() -> Result<Option<UserRc>> {
@@ -88,21 +73,27 @@ pub fn load_user_rc() -> Result<Option<UserRc>> {
     Ok(Some(rc))
 }
 
-pub fn load_composite_workspace_rc(
+pub fn load_workspace_rc(
     path: &Path
 ) -> Result<WorkspaceRc> {
     path.ancestors()
         .into_iter()
-        .filter_map(|ancestor| open_file_if_exists(&ancestor.join(".ludorc")).transpose())
-        .map(|file| {
-            let rc: WorkspaceRc = serde_json::from_reader(file?)?;
+        .map(|ancestor| -> Result<_> {
+            let Some(file) = open_file_if_exists(&ancestor.join(".ludorc"))
+                .with_context(|| format!("Failed to load .ludorc at {}", ancestor.display()))?
+            else { return Ok(None) };
+            Ok(Some((ancestor, file)))
+        })
+        .filter_map(Result::transpose)
+        .map(|result| {
+            let (ancestor, file) = result?;
+            let rc: WorkspaceRc = serde_json::from_reader(file)
+                .with_context(|| format!("Failed to decode .ludorc at {}", ancestor.display()))?;
             if rc.version != 1 {
                 bail!("Unsupported ludorc version: {}", rc.version);
             }
             Ok(rc)
         })
-        .try_fold(
-            WorkspaceRc::default(),
-            |accum, item| item?.compose_atop(accum)
-        )
+        .next()
+        .unwrap_or(Ok(WorkspaceRc::default()))
 }

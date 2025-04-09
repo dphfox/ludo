@@ -1,10 +1,11 @@
-use crate::fs_util::{resolve_module_path, select_native_binary};
+use crate::fs_util::{locate_module_script, resolve_module_path, select_native_binary};
 use crate::ludorc::Native;
 use crate::run::ScriptContext;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use base64ct::{Base64, Encoding};
 use sha3::{Digest, Sha3_256};
 use std::collections::VecDeque;
+use std::ffi::OsString;
 use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -33,9 +34,10 @@ impl BlessInfo {
     pub fn new_from_fs(
         native: &Native
     ) -> Result<Self>{
-        let path = select_native_binary(&native.name, &native.parent);
-        let bytes = fs::read(&path).with_context(|| format!("Could not read native binary {}", native.name.to_string_lossy()))?;
-        Ok(Self::new(native.name.to_string_lossy().to_string(), path, &bytes))
+        let name = OsString::from(&native.name);
+        let path = select_native_binary(&name, &native.parent);
+        let bytes = fs::read(&path).with_context(|| format!("Could not read native binary {}", native.name))?;
+        Ok(Self::new(native.name.to_string(), path, &bytes))
     }
 }
 
@@ -57,17 +59,24 @@ pub fn collect_transitive_natives(
     let mut transitive_natives = vec![];
     let mut queue = VecDeque::from([main_context.clone()]);
     while let Some(context) = queue.pop_front() {
+        println!("Collecting transitive natives for {}", context.script_location.display());
         if let Some(native) = &context.workspace_rc.native {
             transitive_natives.push(TransitiveNative {
                 context: context.clone(),
                 native: native.clone(),
-                bless: BlessInfo::new_from_fs(native)?
+                bless: BlessInfo::new_from_fs(native)
+                    .with_context(|| format!("Failed to bless native for {}", context.script_location.display()))?
             });
         }
         for (alias, permissions) in context.workspace_rc.permissions.iter() {
             if !permissions.native { continue }
-            let module_location = resolve_module_path(&context.luau_rc, &context.script_location, Path::new(alias))?;
-            let sub_context = ScriptContext::new_from_fs(main_context.user_rc.clone(), module_location)?;
+            let module_path = resolve_module_path(&context.luau_rc, &context.script_location, Path::new(alias))
+                .with_context(|| format!("Failed to resolve module path for alias {alias} (defined for {})", context.script_location.display()))?;
+            let script_location = locate_module_script(&module_path)
+                .with_context(|| format!("Failed to locate script for alias {alias} (defined for {})", context.script_location.display()))?
+                .with_context(|| format!("No script associated with alias {alias} (defined for {}", context.script_location.display()))?;
+            let sub_context = ScriptContext::new_from_fs(main_context.user_rc.clone(), script_location)
+                .with_context(|| format!("Failed to construct script context for alias {alias} (defined for {})", context.script_location.display()))?;
             queue.push_back(sub_context);
         }
     }

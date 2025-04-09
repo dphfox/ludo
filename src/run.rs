@@ -23,7 +23,7 @@ impl ScriptContext {
         script_location: PathBuf
     ) -> Result<Self> {
         let workspace = script_location.parent().context("Ludo scripts must exist inside of a workspace")?;
-        let workspace_rc = load_workspace_rc(&workspace).context("Failed to construct .ludorc")?;
+        let workspace_rc = load_workspace_rc(&workspace).context("Failed to construct workspace .ludorc")?;
         let luau_rc = load_composite_luau_rc(&workspace).context("Failed to construct .luaurc")?;
         Ok(Self { user_rc, workspace_rc, luau_rc, script_location })
     }
@@ -35,26 +35,29 @@ pub fn interactive_bless_check(
     let not_blessed: Vec<_> = transitive_natives.iter().filter(|x| !x.is_blessed()).collect();
     if not_blessed.is_empty() { return Ok(()) }
 
-    println!("\n\n");
-    println!("{}", Red.bold().blink().paint("Hold up!"));
+    println!("\n");
+    println!("{}", Red.bold().blink().paint("==================== Hold up! ===================="));
     println!();
-    println!("Ludo has detected binary libraries that you haven't run before and has stopped running.\
-    Running these libraries is risky because they have full access to your system.\
-    If you didn't expect to see this message, {}", Red.bold().paint("stop here!"));
+    println!("This Ludo script is trying to run native libraries that you haven't run before.");
+    println!("Running these libraries is risky because they have full access to your system.");
+    println!("If you didn't expect to see this message, {}", Red.bold().paint("stop here!"));
     println!();
-    println!("These are the binary libraries Ludo found, alongside their hashes:");
+    println!("These are the native libraries Ludo found, alongside their hashes:");
     for transitive_native in not_blessed {
-        println!(
-            "-> {} {} hash: {}",
-            Yellow.bold().paint(&transitive_native.bless.title),
-            Style::new().dimmed().paint(&transitive_native.bless.path.display().to_string()),
-            &transitive_native.bless.hash
-        );
+        println!();
+        println!("-> {}", Yellow.bold().paint(&transitive_native.bless.title));
+        println!("   hash: {}", &transitive_native.bless.hash);
+
+        println!("   {}", Style::new().dimmed().paint(&transitive_native.bless.path.display().to_string()));
     }
-    println!("Ensure these hashes match the public hash for the library you're using.\
-    (The public hash may be found in the library's online documentation, for example.)");
     println!();
-    println!("Once verified, run {} to allow these modified libraries to run.", Blue.paint("ludo bless"));
+    println!("Ensure these hashes match the public hash for the library you're using.");
+    println!("(The public hash may be found in the library's online documentation, for example.)");
+    println!();
+    println!("Once verified, run {} to allow running these libraries next time.", Blue.paint("ludo bless"));
+    println!();
+    println!("{}", Red.bold().blink().paint("=================================================="));
+    println!("\n");
 
     exit(1);
 }

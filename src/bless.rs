@@ -32,11 +32,12 @@ impl BlessInfo {
     }
 
     pub fn new_from_fs(
-        native: &Native
+        native: &Native,
+        workspace_path: &Path,
     ) -> Result<Self>{
         let name = OsString::from(&native.name);
-        let path = select_native_binary(&name, &native.parent);
-        let bytes = fs::read(&path).with_context(|| format!("Could not read native binary {}", native.name))?;
+        let path = workspace_path.join(select_native_binary(&name, &native.parent));
+        let bytes = fs::read(&path).with_context(|| format!("Could not read native binary {} at {}", native.name, path.display()))?;
         Ok(Self::new(native.name.to_string(), path, &bytes))
     }
 }
@@ -61,18 +62,19 @@ pub fn collect_transitive_natives(
     while let Some(context) = queue.pop_front() {
         println!("Collecting transitive natives for {}", context.script_location.display());
         if let Some(native) = &context.workspace_rc.native {
+            let workspace_path = context.script_location.parent().context("Ludo scripts must exist inside of a workspace")?;
             transitive_natives.push(TransitiveNative {
                 context: context.clone(),
                 native: native.clone(),
-                bless: BlessInfo::new_from_fs(native)
+                bless: BlessInfo::new_from_fs(native, workspace_path)
                     .with_context(|| format!("Failed to bless native for {}", context.script_location.display()))?
             });
         }
         for (alias, permissions) in context.workspace_rc.permissions.iter() {
             if !permissions.native { continue }
-            let module_path = resolve_module_path(&context.luau_rc, &context.script_location, Path::new(alias))
+            let workspace_path = resolve_module_path(&context.luau_rc, &context.script_location, Path::new(alias))
                 .with_context(|| format!("Failed to resolve module path for alias {alias} (defined for {})", context.script_location.display()))?;
-            let script_location = locate_module_script(&module_path)
+            let script_location = locate_module_script(&workspace_path)
                 .with_context(|| format!("Failed to locate script for alias {alias} (defined for {})", context.script_location.display()))?
                 .with_context(|| format!("No script associated with alias {alias} (defined for {}", context.script_location.display()))?;
             let sub_context = ScriptContext::new_from_fs(main_context.user_rc.clone(), script_location)

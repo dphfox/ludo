@@ -1,11 +1,14 @@
+use std::fs;
 use std::io::{stdin, stdout, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::exit;
 use std::rc::Rc;
 use ansi_term::Color::{Blue, Red, Yellow};
 use ansi_term::Style;
-use anyhow::{Context, Result};
-use crate::bless::{collect_transitive_natives, TransitiveNative};
+use anyhow::{bail, Context, Result};
+use mlua::{ChunkMode, Compiler, ErrorContext, Lua};
+use mlua::prelude::LuaFunction;
+use crate::native::{collect_transitive_natives, load_native_library, TransitiveNative};
 use crate::luaurc::{load_composite_luau_rc, CanonicalLuauRc};
 use crate::ludorc::{load_workspace_rc, load_user_rc, UserRc, WorkspaceRc};
 
@@ -27,11 +30,21 @@ impl ScriptContext {
         let luau_rc = load_composite_luau_rc(&workspace).context("Failed to construct .luaurc")?;
         Ok(Self { user_rc, workspace_rc, luau_rc, script_location })
     }
+
+    pub fn lua_chunk_name(
+        &self
+    ) -> String {
+        let friendly_name = self.script_location.file_stem()
+            .or(self.script_location.file_name())
+            .unwrap_or(self.script_location.as_os_str());
+        format!("@TODO-PATH/{}", friendly_name.to_string_lossy())
+    }
 }
 
-pub fn interactive_bless_check(
-    transitive_natives: &[TransitiveNative]
+pub fn terminate_if_not_blessed(
+    context: &ScriptContext,
 ) -> Result<()> {
+    let transitive_natives = collect_transitive_natives(&context)?;
     let not_blessed: Vec<_> = transitive_natives.iter().filter(|x| !x.is_blessed()).collect();
     if not_blessed.is_empty() { return Ok(()) }
 
@@ -62,15 +75,30 @@ pub fn interactive_bless_check(
     exit(1);
 }
 
+pub fn run_script(
+    context: &ScriptContext,
+) -> Result<()> {
+    terminate_if_not_blessed(&context)?;
+    let source = fs::read_to_string(&context.script_location)
+        .with_context(|| format!("Could not read source file at {}", context.script_location.display()))?;
+    let lua = Lua::new();
+    if let Some(native) = &context.workspace_rc.native {
+        unsafe { load_native_library(&lua, native) }.context("Failed to load native library")?;
+    }
+    let Ok(_) = lua.sandbox(true) else { bail!("Failed to initialise Luau sandbox") };
+    let func = lua.load(source)
+        .set_name(context.lua_chunk_name())
+        .set_mode(ChunkMode::Text);
+    match func.exec() {
+        Ok(_) => Ok(()),
+        Err(e) => bail!(e.to_string())
+    }
+}
+
 pub fn run_from_fs(
     user_rc: Rc<UserRc>,
-    path: PathBuf
+    script_location: PathBuf
 ) -> Result<()> {
-    let context = ScriptContext::new_from_fs(user_rc, path)?;
-
-    let transitive_natives = collect_transitive_natives(&context)?;
-    interactive_bless_check(&transitive_natives)?;
-
-
-    Ok(())
+    let context = ScriptContext::new_from_fs(user_rc, script_location.clone()).context("Failed to construct script context")?;
+    run_script(&context)
 }

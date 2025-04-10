@@ -4,7 +4,7 @@ use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use std::ffi::{CString};
 use std::path::{Path, PathBuf};
-use crate::bless::BlessInfo;
+use crate::native::BlessInfo;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct UserRc {

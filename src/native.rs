@@ -1,14 +1,16 @@
 use crate::fs_util::{locate_module_script, resolve_module_path, select_native_binary};
 use crate::ludorc::Native;
 use crate::run::ScriptContext;
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use base64ct::{Base64, Encoding};
 use sha3::{Digest, Sha3_256};
 use std::collections::VecDeque;
-use std::ffi::OsString;
+use std::ffi::{CString, OsString};
 use std::fmt::Display;
 use std::fs;
 use std::path::{Path, PathBuf};
+use libloading::{library_filename, Library, Symbol};
+use mlua::{lua_CFunction, Function, Lua, Value};
 
 #[derive(Debug, Clone)]
 pub struct BlessInfo {
@@ -60,7 +62,6 @@ pub fn collect_transitive_natives(
     let mut transitive_natives = vec![];
     let mut queue = VecDeque::from([main_context.clone()]);
     while let Some(context) = queue.pop_front() {
-        println!("Collecting transitive natives for {}", context.script_location.display());
         if let Some(native) = &context.workspace_rc.native {
             let workspace_path = context.script_location.parent().context("Ludo scripts must exist inside of a workspace")?;
             transitive_natives.push(TransitiveNative {
@@ -83,4 +84,20 @@ pub fn collect_transitive_natives(
         }
     }
     Ok(transitive_natives)
+}
+
+pub unsafe fn load_native_library(
+    lua: &Lua,
+    native: &Native
+) -> Result<()> {
+    let library_path = &native.parent.join(library_filename(&native.name));
+    let Ok(library) = Library::new(library_path)
+        else { bail!("Failed to open native library at {}", library_path.display()) };
+    let Ok(ext_main) = library.get::<lua_CFunction>(&native.entry_point.to_bytes())
+        else { bail!("Failed to locate entry point {} in library {}", native.entry_point.to_string_lossy(), library_path.display()) };
+    let Ok(exports) = lua.exec_raw::<Value>((), |state| unsafe { ext_main(state); })
+        else { bail!("Failed to execute entry point {} in library {}", native.entry_point.to_string_lossy(), library_path.display()) };
+    let Ok(_) = lua.globals().set("native", exports)
+        else { bail!("Failed to assign native global for library {}", library_path.display()) };
+    Ok(())
 }

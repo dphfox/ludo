@@ -1,11 +1,11 @@
 mod cli;
-mod extension;
 mod ludorc;
 mod run;
-mod bless;
+mod native;
 mod luaurc;
 mod fs_util;
 
+use std::env;
 use crate::cli::Args;
 use crate::ludorc::load_user_rc;
 use anyhow::{Context, Result};
@@ -28,7 +28,10 @@ fn main() -> Result<()> {
 	}
 	let user_rc = Rc::new(load_user_rc().context("Failed to load user .ludorc")?.unwrap_or_default());
 	if let Some(file_to_run) = args.file_to_run {
-		run_from_fs(user_rc, file_to_run)
+		let file_to_run = env::current_dir().context("No current working directory found")?.join(file_to_run);
+		let script_location = file_to_run.canonicalize()
+			.with_context(|| format!("Couldn't find file at {}", file_to_run.display()))?;
+		run_from_fs(user_rc, script_location)
 	}
 	else {
 		todo!();
